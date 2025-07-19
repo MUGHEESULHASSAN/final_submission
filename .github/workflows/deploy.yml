@@ -1,61 +1,57 @@
-name: Deploy Flask App to EC2
+name: Deploy Flask Backend to EC2
 
 on:
   push:
     branches:
-      - main  # or your deployment branch
+      - main
 
 jobs:
   deploy:
-    name: Deploy to Flask EC2
+    name: Deploy to Flask EC2 Instance
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout this repo
-      uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v3
 
-    - name: Set up SSH key
+    - name: Setup SSH
       run: |
-        echo "${{ secrets.EC2_PRIVATE_KEY }}" > key.pem
-        chmod 600 key.pem
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.EC2_HOST_FLASK }} >> ~/.ssh/known_hosts
 
-    - name: SSH and deploy
+    - name: SSH into Flask EC2 and Deploy App
       run: |
-        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST_FLASK }} << 'EOF'
           set -e
-          
-          cd /home/ubuntu
+          cd ~
 
-          # Clone repo if not exists
+          echo "Cloning or Updating Flask App Repo..."
           if [ ! -d "two-tier-flask-app" ]; then
-            sudo git clone https://github.com/MUGHEESULHASSAN/final_submission.git two-tier-flask-app
+            git clone https://github.com/MUGHEESULHASSAN/final_submission.git two-tier-flask-app
           else
             cd two-tier-flask-app
-            sudo git config --global --add safe.directory /home/ubuntu/two-tier-flask-app
-            sudo chown -R ubuntu:ubuntu .git
-            sudo chmod -R u+rwX .git
-            sudo git pull origin main
+            git pull origin main
             cd ..
           fi
 
           cd two-tier-flask-app
 
-          # Optional: make sure requirements.txt is installed (if running pip as part of image)
-          # sudo pip install -r requirements.txt
+          echo "Building Docker Image..."
+          sudo docker build -t two-tier-backend .
 
-          # Build Docker image
-          sudo docker build -t two-tier-backend:latest .
+          echo "Stopping existing container (if any)..."
+          sudo docker rm -f flask || true
 
-          # Stop & remove existing container
-          sudo docker stop flask || true
-          sudo docker rm flask || true
-
-          # Run new container with updated code
-          sudo docker run -d --name flask --network two-tier \
-            -p 5000:5000 \
+          echo "Running new Flask container..."
+          sudo docker run -d --name flask -p 5000:5000 \
+            --network two-tier \
             -e MYSQL_HOST=10.0.2.100 \
             -e MYSQL_USER=root \
             -e MYSQL_PASSWORD=root \
             -e MYSQL_DB=devops \
-            two-tier-backend:latest
+            two-tier-backend
+
+          echo "Deployment to Flask EC2 completed."
         EOF
