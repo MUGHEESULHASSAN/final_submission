@@ -19,6 +19,8 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
+        eval "$(ssh-agent -s)"
+        ssh-add ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.EC2_HOST_FLASK }} >> ~/.ssh/known_hosts
 
     - name: SSH into Flask EC2 and Deploy App
