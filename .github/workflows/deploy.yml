@@ -29,6 +29,9 @@ jobs:
           set -e
           cd ~
 
+          echo "Fixing directory ownership..."
+          sudo chown -R ubuntu:ubuntu ~/two-tier-flask-app || true
+
           echo "Cloning or Updating Flask App Repo..."
           if [ ! -d "two-tier-flask-app" ]; then
             git clone https://github.com/MUGHEESULHASSAN/final_submission.git two-tier-flask-app
